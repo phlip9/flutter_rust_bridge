@@ -7,10 +7,11 @@ use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use crate::ffi::{IntoDart, MessagePort};
 use anyhow::Result;
+use futures_util::FutureExt;
 
 use crate::rust2dart::{Rust2Dart, TaskCallback};
 use crate::support::WireSyncReturn;
-use crate::{spawn, SyncReturn};
+use crate::{spawn, thread, SyncReturn};
 
 /// The types of return values for a particular Rust function.
 #[derive(Copy, Clone)]
@@ -210,6 +211,17 @@ impl<EH: ErrorHandler> ThreadPoolExecutor<EH> {
     }
 }
 
+use once_cell::sync::Lazy;
+
+static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(thread::WORKERS_COUNT)
+        .max_blocking_threads(thread::WORKERS_COUNT)
+        .build()
+        .expect("Failed to build tokio runtime")
+});
+
 impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
     fn execute<TaskFn, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFn)
     where
@@ -262,33 +274,43 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
+        let eh2 = self.error_handler;
+
         let WrapInfo { port, mode, .. } = wrap_info;
 
-        let port = port.expect("execute_async should always be given a MessagePort");
+        let port = port.expect("execute_async must always be given a MessagePort");
+        let port2 = port;
 
-        spawn!(|port: Option<MessagePort>| {
-            let thread_result = panic::catch_unwind(move || {
-                let rust2dart = Rust2Dart::new(port);
-                let result = futures_executor::block_on(task);
-                match result {
-                    Ok(output) => match mode {
-                        FfiCallMode::Normal => {
-                            rust2dart.success(output);
-                        }
-                        FfiCallMode::Stream => (),
-                        FfiCallMode::Sync => panic!(
-                            "FfiCallMode::Sync should not call execute_async, \
+        let maybe_spawn_panic = panic::catch_unwind(move || {
+            let eh = eh2;
+            let port = port2;
+            let rt = &*RUNTIME;
+
+            let wrapped_task = task.catch_unwind().map(move |res| {
+                let output = match res {
+                    Ok(Ok(output)) => output,
+                    Ok(Err(err)) => return eh.handle_error(port, Error::ResultError(err)),
+                    Err(err) => return eh.handle_error(port, Error::Panic(err)),
+                };
+
+                match mode {
+                    FfiCallMode::Normal => {
+                        Rust2Dart::new(port).success(output);
+                    }
+                    FfiCallMode::Stream => (),
+                    FfiCallMode::Sync => panic!(
+                        "FfiCallMode::Sync should not call execute_async, \
                              please call execute_sync instead"
-                        ),
-                    },
-                    Err(err) => eh.handle_error(port, Error::ResultError(err)),
-                }
+                    ),
+                };
             });
 
-            if let Err(err) = thread_result {
-                eh.handle_error(port, Error::Panic(err));
-            }
+            rt.spawn(wrapped_task);
         });
+
+        if let Err(err) = maybe_spawn_panic {
+            eh.handle_error(port, Error::Panic(err));
+        }
     }
 
     fn execute_sync<SyncTaskFn, TaskRet>(

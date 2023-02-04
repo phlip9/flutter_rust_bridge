@@ -761,13 +761,15 @@ dependencies = [
  "console_error_panic_hook",
  "dart-sys",
  "flutter_rust_bridge_macros",
- "futures-executor",
+ "futures-util",
  "js-sys",
  "lazy_static",
  "libc",
  "log",
+ "once_cell",
  "parking_lot 0.12.1",
  "threadpool",
+ "tokio",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -895,17 +897,6 @@ name = "futures-core"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec90ff4d0fe1f57d600049061dc6bb68ed03c7d2fbd697274c41805dcb3f8608"
-
-[[package]]
-name = "futures-executor"
-version = "0.3.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8de0a35a6ab97ec8869e32a2473f4b1324459e14c29275d14b10cb1fd19b50e"
-dependencies = [
- "futures-core",
- "futures-task",
- "futures-util",
-]
 
 [[package]]
 name = "futures-io"
