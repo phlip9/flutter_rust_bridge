@@ -6,13 +6,11 @@ use std::panic;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use anyhow::Result;
-use futures_util::FutureExt;
-use once_cell::sync::Lazy;
 
-use crate::ffi::{IntoDart, MessagePort};
+use crate::ffi::{DartAbi, IntoDart, MessagePort};
 use crate::rust2dart::{Rust2Dart, TaskCallback};
 use crate::support::WireSyncReturn;
-use crate::{spawn, thread, SyncReturn};
+use crate::{spawn, SyncReturn};
 
 /// The types of return values for a particular Rust function.
 #[derive(Copy, Clone)]
@@ -219,23 +217,21 @@ impl<EH: ErrorHandler> ThreadPoolExecutor<EH> {
     }
 }
 
-static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_name("frb_tokio_runtime")
-        .worker_threads(thread::WORKERS_COUNT)
-        .max_blocking_threads(thread::WORKERS_COUNT)
-        .build()
-        .expect("Failed to build frb tokio runtime")
-});
+thread_local! {
+    static RUNTIME: tokio::runtime::Runtime =
+        tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .thread_name("frb_tokio_runtime")
+                .build()
+                .expect("Failed to build frb tokio runtime");
+}
 
-fn report_task_result<TaskRet, EH>(
+fn report_task_result<EH>(
     error_handler: EH,
     port: MessagePort,
     mode: FfiCallMode,
-    task_result: Result<TaskRet, anyhow::Error>,
+    task_result: Result<DartAbi, anyhow::Error>,
 ) where
-    TaskRet: IntoDart,
     EH: ErrorHandler,
 {
     let task_value = match task_result {
@@ -249,7 +245,7 @@ fn report_task_result<TaskRet, EH>(
         }
         FfiCallMode::Stream => (),
         FfiCallMode::Sync => panic!(
-            "execute and execute_async should never be called with \
+            "execute and execute_future should never be called with \
              FfiCallMode::Sync, please call execute_sync instead"
         ),
     };
@@ -263,19 +259,22 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
     {
         let eh = self.error_handler;
         let WrapInfo { port, mode, .. } = wrap_info;
-        let port = port.expect("execute_async must always be given a MessagePort");
+        let port = port.expect("execute must always be given a MessagePort");
 
         let task_callback = TaskCallback::new(Rust2Dart::new(port));
 
-        let wrapped_task = move || {
-            if let Err(err) = panic::catch_unwind(move || {
-                report_task_result(eh, port, mode, task(task_callback));
-            }) {
+        spawn!(|port: MessagePort| {
+            let port_clone = port.clone();
+
+            let task_panic = panic::catch_unwind(move || {
+                let task_result = task(task_callback).map(IntoDart::into_dart);
+                report_task_result(eh, port_clone, mode, task_result);
+            });
+
+            if let Err(err) = task_panic {
                 eh.handle_error(port, Error::Panic(err));
             }
-        };
-
-        RUNTIME.spawn_blocking(wrapped_task);
+        });
     }
 
     fn execute_future<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
@@ -285,18 +284,21 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
     {
         let eh = self.error_handler;
         let WrapInfo { port, mode, .. } = wrap_info;
-        let port = port.expect("execute_async must always be given a MessagePort");
+        let port = port.expect("execute_future must always be given a MessagePort");
 
-        let wrapped_task = task
-            .map(move |task_result| report_task_result(eh, port, mode, task_result))
-            .catch_unwind()
-            .map(move |task_panic| {
-                if let Err(err) = task_panic {
-                    eh.handle_error(port, Error::Panic(err));
-                }
+        spawn!(|port: MessagePort| {
+            let port_clone = port.clone();
+
+            let task_panic = panic::catch_unwind(move || {
+                let task_result =
+                    RUNTIME.with(move |rt| rt.block_on(task).map(IntoDart::into_dart));
+                report_task_result(eh, port_clone, mode, task_result);
             });
 
-        RUNTIME.spawn(wrapped_task);
+            if let Err(err) = task_panic {
+                eh.handle_error(port, Error::Panic(err));
+            }
+        });
     }
 
     fn execute_sync<SyncTaskFn, TaskRet>(
@@ -308,6 +310,8 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         SyncTaskFn: FnOnce() -> Result<SyncReturn<TaskRet>> + UnwindSafe,
         TaskRet: IntoDart,
     {
+        // RUNTIME.with(move |rt| rt.block_on(async move { sync_task() }))
+
         sync_task()
     }
 }
