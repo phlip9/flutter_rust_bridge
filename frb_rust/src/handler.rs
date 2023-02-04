@@ -5,10 +5,11 @@ use std::future::Future;
 use std::panic;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
-use crate::ffi::{IntoDart, MessagePort};
 use anyhow::Result;
 use futures_util::FutureExt;
+use once_cell::sync::Lazy;
 
+use crate::ffi::{IntoDart, MessagePort};
 use crate::rust2dart::{Rust2Dart, TaskCallback};
 use crate::support::WireSyncReturn;
 use crate::{spawn, thread, SyncReturn};
@@ -135,9 +136,13 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         // NOTE This extra [catch_unwind] **SHOULD** be put outside **ALL** code!
         // For reason, see comments in [wrap]
         let _ = panic::catch_unwind(move || {
-            let wrap_info2 = wrap_info.clone();
-            let task = prepare();
-            self.executor.execute_async(wrap_info2, task);
+            let port = wrap_info.port.unwrap();
+            if let Err(error) = panic::catch_unwind(move || {
+                let task = prepare();
+                self.executor.execute_async(wrap_info, task);
+            }) {
+                self.error_handler.handle_error(port, Error::Panic(error));
+            }
         });
     }
 
@@ -211,8 +216,6 @@ impl<EH: ErrorHandler> ThreadPoolExecutor<EH> {
     }
 }
 
-use once_cell::sync::Lazy;
-
 static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -274,43 +277,30 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
-        let eh2 = self.error_handler;
-
         let WrapInfo { port, mode, .. } = wrap_info;
-
         let port = port.expect("execute_async must always be given a MessagePort");
-        let port2 = port;
+        let rt = &*RUNTIME;
 
-        let maybe_spawn_panic = panic::catch_unwind(move || {
-            let eh = eh2;
-            let port = port2;
-            let rt = &*RUNTIME;
+        let wrapped_task = task.catch_unwind().map(move |res| {
+            let output = match res {
+                Ok(Ok(output)) => output,
+                Ok(Err(err)) => return eh.handle_error(port, Error::ResultError(err)),
+                Err(err) => return eh.handle_error(port, Error::Panic(err)),
+            };
 
-            let wrapped_task = task.catch_unwind().map(move |res| {
-                let output = match res {
-                    Ok(Ok(output)) => output,
-                    Ok(Err(err)) => return eh.handle_error(port, Error::ResultError(err)),
-                    Err(err) => return eh.handle_error(port, Error::Panic(err)),
-                };
-
-                match mode {
-                    FfiCallMode::Normal => {
-                        Rust2Dart::new(port).success(output);
-                    }
-                    FfiCallMode::Stream => (),
-                    FfiCallMode::Sync => panic!(
-                        "FfiCallMode::Sync should not call execute_async, \
-                             please call execute_sync instead"
-                    ),
-                };
-            });
-
-            rt.spawn(wrapped_task);
+            match mode {
+                FfiCallMode::Normal => {
+                    Rust2Dart::new(port).success(output);
+                }
+                FfiCallMode::Stream => (),
+                FfiCallMode::Sync => panic!(
+                    "FfiCallMode::Sync should not call execute_async, \
+                         please call execute_sync instead"
+                ),
+            };
         });
 
-        if let Err(err) = maybe_spawn_panic {
-            eh.handle_error(port, Error::Panic(err));
-        }
+        rt.spawn(wrapped_task);
     }
 
     fn execute_sync<SyncTaskFn, TaskRet>(
