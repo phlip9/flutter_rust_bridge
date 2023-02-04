@@ -53,7 +53,7 @@ pub trait Handler {
         TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
 
-    fn wrap_async<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
+    fn wrap_future<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
     where
         PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
         TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
@@ -116,18 +116,19 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         // as well. Then that new panic will go across language boundary and cause UB.
         // ref https://doc.rust-lang.org/nomicon/unwinding.html
         let _ = panic::catch_unwind(move || {
-            let wrap_info2 = wrap_info.clone();
+            let port = wrap_info
+                .port
+                .expect("wrap must always be given a MessagePort");
             if let Err(error) = panic::catch_unwind(move || {
                 let task = prepare();
-                self.executor.execute(wrap_info2, task);
+                self.executor.execute(wrap_info, task);
             }) {
-                self.error_handler
-                    .handle_error(wrap_info.port.unwrap(), Error::Panic(error));
+                self.error_handler.handle_error(port, Error::Panic(error));
             }
         });
     }
 
-    fn wrap_async<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
+    fn wrap_future<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
     where
         PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
         TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
@@ -136,10 +137,12 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         // NOTE This extra [catch_unwind] **SHOULD** be put outside **ALL** code!
         // For reason, see comments in [wrap]
         let _ = panic::catch_unwind(move || {
-            let port = wrap_info.port.unwrap();
+            let port = wrap_info
+                .port
+                .expect("wrap_async must always be given a MessagePort");
             if let Err(error) = panic::catch_unwind(move || {
                 let task = prepare();
-                self.executor.execute_async(wrap_info, task);
+                self.executor.execute_future(wrap_info, task);
             }) {
                 self.error_handler.handle_error(port, Error::Panic(error));
             }
@@ -186,7 +189,7 @@ pub trait Executor: RefUnwindSafe {
         TaskRet: IntoDart;
 
     /// TODO
-    fn execute_async<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    fn execute_future<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
     where
         TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
@@ -219,11 +222,38 @@ impl<EH: ErrorHandler> ThreadPoolExecutor<EH> {
 static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .thread_name("frb_tokio_runtime")
         .worker_threads(thread::WORKERS_COUNT)
         .max_blocking_threads(thread::WORKERS_COUNT)
         .build()
-        .expect("Failed to build tokio runtime")
+        .expect("Failed to build frb tokio runtime")
 });
+
+fn report_task_result<TaskRet, EH>(
+    error_handler: EH,
+    port: MessagePort,
+    mode: FfiCallMode,
+    task_result: Result<TaskRet, anyhow::Error>,
+) where
+    TaskRet: IntoDart,
+    EH: ErrorHandler,
+{
+    let task_value = match task_result {
+        Ok(val) => val,
+        Err(err) => return error_handler.handle_error(port, Error::ResultError(err)),
+    };
+
+    match mode {
+        FfiCallMode::Normal => {
+            Rust2Dart::new(port).success(task_value);
+        }
+        FfiCallMode::Stream => (),
+        FfiCallMode::Sync => panic!(
+            "execute and execute_async should never be called with \
+             FfiCallMode::Sync, please call execute_sync instead"
+        ),
+    };
+}
 
 impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
     fn execute<TaskFn, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFn)
@@ -232,46 +262,23 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
-        let eh2 = self.error_handler;
-
         let WrapInfo { port, mode, .. } = wrap_info;
+        let port = port.expect("execute_async must always be given a MessagePort");
 
-        spawn!(|port: Option<MessagePort>| {
-            let port2 = port.as_ref().cloned();
-            let thread_result = panic::catch_unwind(move || {
-                let port2 = port2.expect("(worker) thread");
-                #[allow(clippy::clone_on_copy)]
-                let rust2dart = Rust2Dart::new(port2.clone());
+        let task_callback = TaskCallback::new(Rust2Dart::new(port));
 
-                let ret = task(TaskCallback::new(rust2dart.clone())).map(IntoDart::into_dart);
-
-                match ret {
-                    Ok(result) => {
-                        match mode {
-                            FfiCallMode::Normal => {
-                                rust2dart.success(result);
-                            }
-                            FfiCallMode::Stream => {
-                                // nothing - ignore the return value of a Stream-typed function
-                            }
-                            FfiCallMode::Sync => {
-                                panic!("FfiCallMode::Sync should not call execute, please call execute_sync instead")
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        eh2.handle_error(port2, Error::ResultError(error));
-                    }
-                };
-            });
-
-            if let Err(error) = thread_result {
-                eh.handle_error(port.expect("(worker) eh"), Error::Panic(error));
+        let wrapped_task = move || {
+            if let Err(err) = panic::catch_unwind(move || {
+                report_task_result(eh, port, mode, task(task_callback));
+            }) {
+                eh.handle_error(port, Error::Panic(err));
             }
-        });
+        };
+
+        RUNTIME.spawn_blocking(wrapped_task);
     }
 
-    fn execute_async<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    fn execute_future<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
     where
         TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart,
@@ -279,28 +286,17 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         let eh = self.error_handler;
         let WrapInfo { port, mode, .. } = wrap_info;
         let port = port.expect("execute_async must always be given a MessagePort");
-        let rt = &*RUNTIME;
 
-        let wrapped_task = task.catch_unwind().map(move |res| {
-            let output = match res {
-                Ok(Ok(output)) => output,
-                Ok(Err(err)) => return eh.handle_error(port, Error::ResultError(err)),
-                Err(err) => return eh.handle_error(port, Error::Panic(err)),
-            };
-
-            match mode {
-                FfiCallMode::Normal => {
-                    Rust2Dart::new(port).success(output);
+        let wrapped_task = task
+            .map(move |task_result| report_task_result(eh, port, mode, task_result))
+            .catch_unwind()
+            .map(move |task_panic| {
+                if let Err(err) = task_panic {
+                    eh.handle_error(port, Error::Panic(err));
                 }
-                FfiCallMode::Stream => (),
-                FfiCallMode::Sync => panic!(
-                    "FfiCallMode::Sync should not call execute_async, \
-                         please call execute_sync instead"
-                ),
-            };
-        });
+            });
 
-        rt.spawn(wrapped_task);
+        RUNTIME.spawn(wrapped_task);
     }
 
     fn execute_sync<SyncTaskFn, TaskRet>(

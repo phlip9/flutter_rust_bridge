@@ -362,7 +362,7 @@ impl<'a> Generator<'a> {
                 format!("{code_wire2api}\nmove |task_callback| {closure_body}\n"),
             ),
             (IrFuncMode::Normal | IrFuncMode::Stream { .. }, true) => (
-                "wrap_async",
+                "wrap_future",
                 None,
                 format!("{code_wire2api}\n{closure_body}\n"),
             ),

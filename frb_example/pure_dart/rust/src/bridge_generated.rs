@@ -1895,7 +1895,7 @@ fn wire_handle_async_fn_impl(
     a: impl Wire2Api<i32> + UnwindSafe,
     b: impl Wire2Api<i32> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
         WrapInfo {
             debug_name: "handle_async_fn",
             port: Some(port_),
@@ -1912,7 +1912,7 @@ fn wire_handle_async_fn_fallible_impl(
     port_: MessagePort,
     mode: impl Wire2Api<String> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
         WrapInfo {
             debug_name: "handle_async_fn_fallible",
             port: Some(port_),
@@ -2092,7 +2092,7 @@ fn wire_sum_async__method__SumWith_impl(
     y: impl Wire2Api<u32> + UnwindSafe,
     z: impl Wire2Api<u32> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
         WrapInfo {
             debug_name: "sum_async__method__SumWith",
             port: Some(port_),
@@ -2111,7 +2111,7 @@ fn wire_sum_async_fallible__method__SumWith_impl(
     that: impl Wire2Api<SumWith> + UnwindSafe,
     mode: impl Wire2Api<String> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
         WrapInfo {
             debug_name: "sum_async_fallible__method__SumWith",
             port: Some(port_),
