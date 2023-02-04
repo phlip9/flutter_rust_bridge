@@ -564,6 +564,14 @@ abstract class FlutterRustBridgeExampleSingleBlockTest {
 
   FlutterRustBridgeTaskConstMeta get kHandleTypeAliasModelConstMeta;
 
+  Future<int> handleAsyncFn({required int a, required int b, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnConstMeta;
+
+  Future<Uint8List> handleAsyncFnFallible({required String mode, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnFallibleConstMeta;
+
   Future<int> sumMethodSumWith({required SumWith that, required int y, required int z, dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kSumMethodSumWithConstMeta;
@@ -597,6 +605,14 @@ abstract class FlutterRustBridgeExampleSingleBlockTest {
   Stream<int> handleSomeStaticStreamSinkSingleArgStaticMethodConcatenateWith({dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kHandleSomeStaticStreamSinkSingleArgStaticMethodConcatenateWithConstMeta;
+
+  Future<int> sumAsyncMethodSumWith({required SumWith that, required int y, required int z, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kSumAsyncMethodSumWithConstMeta;
+
+  Future<int> sumAsyncFallibleMethodSumWith({required SumWith that, required String mode, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kSumAsyncFallibleMethodSumWithConstMeta;
 
   DropFnType get dropOpaqueBoxDartDebug;
   ShareFnType get shareOpaqueBoxDartDebug;
@@ -1298,6 +1314,17 @@ class SumWith {
         that: this,
         y: y,
         z: z,
+      );
+
+  Future<int> sumAsync({required int y, required int z, dynamic hint}) => bridge.sumAsyncMethodSumWith(
+        that: this,
+        y: y,
+        z: z,
+      );
+
+  Future<int> sumAsyncFallible({required String mode, dynamic hint}) => bridge.sumAsyncFallibleMethodSumWith(
+        that: this,
+        mode: mode,
       );
 }
 

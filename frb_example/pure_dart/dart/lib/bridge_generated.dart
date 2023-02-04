@@ -2121,6 +2121,39 @@ class FlutterRustBridgeExampleSingleBlockTestImpl implements FlutterRustBridgeEx
         argNames: ["input"],
       );
 
+  Future<int> handleAsyncFn({required int a, required int b, dynamic hint}) {
+    var arg0 = api2wire_i32(a);
+    var arg1 = api2wire_i32(b);
+    return _platform.executeNormal(FlutterRustBridgeTask(
+      callFfi: (port_) => _platform.inner.wire_handle_async_fn(port_, arg0, arg1),
+      parseSuccessData: _wire2api_i32,
+      constMeta: kHandleAsyncFnConstMeta,
+      argValues: [a, b],
+      hint: hint,
+    ));
+  }
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "handle_async_fn",
+        argNames: ["a", "b"],
+      );
+
+  Future<Uint8List> handleAsyncFnFallible({required String mode, dynamic hint}) {
+    var arg0 = _platform.api2wire_String(mode);
+    return _platform.executeNormal(FlutterRustBridgeTask(
+      callFfi: (port_) => _platform.inner.wire_handle_async_fn_fallible(port_, arg0),
+      parseSuccessData: _wire2api_uint_8_list,
+      constMeta: kHandleAsyncFnFallibleConstMeta,
+      argValues: [mode],
+      hint: hint,
+    ));
+  }
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnFallibleConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "handle_async_fn_fallible",
+        argNames: ["mode"],
+      );
+
   Future<int> sumMethodSumWith({required SumWith that, required int y, required int z, dynamic hint}) {
     var arg0 = _platform.api2wire_box_autoadd_sum_with(that);
     var arg1 = api2wire_u32(y);
@@ -2263,6 +2296,41 @@ class FlutterRustBridgeExampleSingleBlockTestImpl implements FlutterRustBridgeEx
       const FlutterRustBridgeTaskConstMeta(
         debugName: "handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith",
         argNames: [],
+      );
+
+  Future<int> sumAsyncMethodSumWith({required SumWith that, required int y, required int z, dynamic hint}) {
+    var arg0 = _platform.api2wire_box_autoadd_sum_with(that);
+    var arg1 = api2wire_u32(y);
+    var arg2 = api2wire_u32(z);
+    return _platform.executeNormal(FlutterRustBridgeTask(
+      callFfi: (port_) => _platform.inner.wire_sum_async__method__SumWith(port_, arg0, arg1, arg2),
+      parseSuccessData: _wire2api_u32,
+      constMeta: kSumAsyncMethodSumWithConstMeta,
+      argValues: [that, y, z],
+      hint: hint,
+    ));
+  }
+
+  FlutterRustBridgeTaskConstMeta get kSumAsyncMethodSumWithConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "sum_async__method__SumWith",
+        argNames: ["that", "y", "z"],
+      );
+
+  Future<int> sumAsyncFallibleMethodSumWith({required SumWith that, required String mode, dynamic hint}) {
+    var arg0 = _platform.api2wire_box_autoadd_sum_with(that);
+    var arg1 = _platform.api2wire_String(mode);
+    return _platform.executeNormal(FlutterRustBridgeTask(
+      callFfi: (port_) => _platform.inner.wire_sum_async_fallible__method__SumWith(port_, arg0, arg1),
+      parseSuccessData: _wire2api_u32,
+      constMeta: kSumAsyncFallibleMethodSumWithConstMeta,
+      argValues: [that, mode],
+      hint: hint,
+    ));
+  }
+
+  FlutterRustBridgeTaskConstMeta get kSumAsyncFallibleMethodSumWithConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "sum_async_fallible__method__SumWith",
+        argNames: ["that", "mode"],
       );
 
   DropFnType get dropOpaqueBoxDartDebug => _platform.inner.drop_opaque_BoxDartDebug;

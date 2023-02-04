@@ -679,6 +679,16 @@ pub fn wire_handle_type_alias_model(port_: MessagePort, input: u64) {
 }
 
 #[wasm_bindgen]
+pub fn wire_handle_async_fn(port_: MessagePort, a: i32, b: i32) {
+    wire_handle_async_fn_impl(port_, a, b)
+}
+
+#[wasm_bindgen]
+pub fn wire_handle_async_fn_fallible(port_: MessagePort, mode: String) {
+    wire_handle_async_fn_fallible_impl(port_, mode)
+}
+
+#[wasm_bindgen]
 pub fn wire_sum__method__SumWith(port_: MessagePort, that: JsValue, y: u32, z: u32) {
     wire_sum__method__SumWith_impl(port_, that, y, z)
 }
@@ -734,6 +744,16 @@ pub fn wire_handle_some_static_stream_sink_single_arg__static_method__Concatenat
     port_: MessagePort,
 ) {
     wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith_impl(port_)
+}
+
+#[wasm_bindgen]
+pub fn wire_sum_async__method__SumWith(port_: MessagePort, that: JsValue, y: u32, z: u32) {
+    wire_sum_async__method__SumWith_impl(port_, that, y, z)
+}
+
+#[wasm_bindgen]
+pub fn wire_sum_async_fallible__method__SumWith(port_: MessagePort, that: JsValue, mode: String) {
+    wire_sum_async_fallible__method__SumWith_impl(port_, that, mode)
 }
 
 // Section: allocate functions

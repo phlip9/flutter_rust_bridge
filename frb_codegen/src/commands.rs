@@ -339,7 +339,9 @@ fn ffigen(
 
 pub fn format_rust(path: &[PathBuf]) -> Result {
     debug!("execute format_rust path={:?}", path);
-    let res = execute_command("rustfmt", path, None)?;
+    let res = run!("cargo", "fmt", "--", *path);
+    let res = res.map_err(|err| Error::StringError(format!("{err}")))?;
+
     if !res.status.success() {
         return Err(Error::Rustfmt(
             String::from_utf8_lossy(&res.stderr).to_string(),

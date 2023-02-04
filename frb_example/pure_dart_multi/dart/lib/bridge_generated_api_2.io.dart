@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
+import 'package:uuid/uuid.dart';
 import 'bridge_generated_api_2.dart';
 export 'bridge_generated_api_2.dart';
 import 'dart:ffi' as ffi;
@@ -18,7 +19,6 @@ class ApiClass2Platform extends FlutterRustBridgeBase<ApiClass2Wire> {
 // Section: finalizer
 
 // Section: api_fill_to_wire
-
 }
 
 // ignore_for_file: camel_case_types, non_constant_identifier_names, avoid_positional_boolean_parameters, annotate_overrides, constant_identifier_names

@@ -6,6 +6,7 @@ pub struct IrFunc {
     pub name: String,
     pub inputs: Vec<IrField>,
     pub output: IrType,
+    pub is_async: bool,
     pub fallible: bool,
     pub mode: IrFuncMode,
     pub comments: Vec<IrComment>,
@@ -32,6 +33,7 @@ impl IrFuncDisplay {
     pub fn from_ir(func: &IrFunc, target: Target) -> Self {
         Self {
             name: func.wire_func_name(),
+            // is_async: func.is_async,
             has_port_argument: func.mode.has_port_argument(),
             inputs: (func.mode.has_port_argument())
                 .then(|| IrParam {

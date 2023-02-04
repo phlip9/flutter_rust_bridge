@@ -347,36 +347,40 @@ impl<'a> Generator<'a> {
                 func.fallible,
             )
         };
-        let code_call_inner_func_result = if func.fallible {
-            code_call_inner_func
-        } else {
-            format!("Ok({})", code_call_inner_func)
+
+        let closure_body = match (func.fallible, func.is_async) {
+            (true, false) => code_call_inner_func,
+            (false, false) => format!("Ok({code_call_inner_func})"),
+            (true, true) => format!("async move {{ {code_call_inner_func}.await }}"),
+            (false, true) => format!("async move {{ Ok({code_call_inner_func}.await) }}"), // (false, true) => format!("support::async_infallible({})", code_call_inner_func),
         };
 
-        let (handler_func_name, return_type, code_closure) = match func.mode {
-            IrFuncMode::Sync => (
-                "wrap_sync",
-                Some("support::WireSyncReturn"),
-                format!(
-                    "{}
-                    {}",
-                    code_wire2api, code_call_inner_func_result,
-                ),
-            ),
-            IrFuncMode::Normal | IrFuncMode::Stream { .. } => (
+        let (handler_func_name, return_type, closure_body) = match (&func.mode, func.is_async) {
+            (IrFuncMode::Normal | IrFuncMode::Stream { .. }, false) => (
                 "wrap",
                 None,
-                format!(
-                    "{} move |task_callback| {}",
-                    code_wire2api, code_call_inner_func_result,
-                ),
+                format!("{code_wire2api}\nmove |task_callback| {closure_body}\n"),
             ),
+            (IrFuncMode::Normal | IrFuncMode::Stream { .. }, true) => (
+                "wrap_async",
+                None,
+                format!("{code_wire2api}\n{closure_body}\n"),
+            ),
+            (IrFuncMode::Sync, false) => (
+                "wrap_sync",
+                Some("support::WireSyncReturn"),
+                format!("{code_wire2api}\n{closure_body}\n"),
+            ),
+            (IrFuncMode::Sync, true) => {
+                panic!("`async fn` is not yet supported with `SyncReturn<_>`")
+            }
         };
 
         let body = format!(
             "{}.{}({}, move || {{ {} }})",
-            HANDLER_NAME, handler_func_name, wrap_info_obj, code_closure,
+            HANDLER_NAME, handler_func_name, wrap_info_obj, closure_body,
         );
+
         let redirect_body = format!(
             "{}_impl({})",
             func.wire_func_name(),
@@ -386,7 +390,7 @@ impl<'a> Generator<'a> {
                 .collect::<Vec<_>>()
                 .join(","),
         );
-        Acc::new(|target| match target {
+        let acc = Acc::new(|target| match target {
             Io | Wasm => self.extern_func_collector.generate(
                 &func.wire_func_name(),
                 if target.is_wasm() {
@@ -408,7 +412,24 @@ impl<'a> Generator<'a> {
                 return_type.map(|t| format!("-> {}", t)).unwrap_or_default(),
                 body,
             ),
-        })
+        });
+
+        // if func.name == "handle_async_fn" {
+        //     dbg!(func);
+        //     println!("common:\n{}", acc.common);
+        //     println!("===");
+        //     println!("io:\n{}", acc.io);
+        //     println!("===");
+        //     println!("wasm:\n{}", acc.wasm);
+        //     println!("===");
+        //
+        //     println!("body:\n{}", body);
+        //     println!("===");
+        //
+        //     panic!("foo");
+        // }
+
+        acc
     }
 
     fn generate_wire_struct(&mut self, ty: &IrType, ir_file: &IrFile) -> String {
@@ -605,6 +626,7 @@ impl ExternFuncCollector {
         } else if target.is_wasm() && !func_name.starts_with("wire_") {
             self.wasm_exports.push(IrFuncDisplay {
                 name: func_name.to_owned(),
+                // is_async: todo!(),
                 inputs: params
                     .iter()
                     .map(|(verbatim, dart)| {

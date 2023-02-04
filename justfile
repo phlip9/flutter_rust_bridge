@@ -65,7 +65,7 @@ test-flutter-web *args:
     cd {{frb_flutter}} && just serve -c rust {{args}}
 test-integration:
     cd {{frb_flutter}} && flutter test integration_test/main.dart
-test-support platform="chrome":
+test-support platform="vm":
     cd frb_dart && dart pub get && \
         dart test test/*.dart && \
         dart test -p {{platform}} test/*.dart

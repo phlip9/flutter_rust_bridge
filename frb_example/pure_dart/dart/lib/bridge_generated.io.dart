@@ -3151,6 +3151,38 @@ class FlutterRustBridgeExampleSingleBlockTestWire implements FlutterRustBridgeWi
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Uint64)>>('wire_handle_type_alias_model');
   late final _wire_handle_type_alias_model = _wire_handle_type_alias_modelPtr.asFunction<void Function(int, int)>();
 
+  void wire_handle_async_fn(
+    int port_,
+    int a,
+    int b,
+  ) {
+    return _wire_handle_async_fn(
+      port_,
+      a,
+      b,
+    );
+  }
+
+  late final _wire_handle_async_fnPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int32, ffi.Int32)>>('wire_handle_async_fn');
+  late final _wire_handle_async_fn = _wire_handle_async_fnPtr.asFunction<void Function(int, int, int)>();
+
+  void wire_handle_async_fn_fallible(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> mode,
+  ) {
+    return _wire_handle_async_fn_fallible(
+      port_,
+      mode,
+    );
+  }
+
+  late final _wire_handle_async_fn_falliblePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<wire_uint_8_list>)>>(
+          'wire_handle_async_fn_fallible');
+  late final _wire_handle_async_fn_fallible =
+      _wire_handle_async_fn_falliblePtr.asFunction<void Function(int, ffi.Pointer<wire_uint_8_list>)>();
+
   void wire_sum__method__SumWith(
     int port_,
     ffi.Pointer<wire_SumWith> that,
@@ -3297,6 +3329,44 @@ class FlutterRustBridgeExampleSingleBlockTestWire implements FlutterRustBridgeWi
   late final _wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith =
       _wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWithPtr
           .asFunction<void Function(int)>();
+
+  void wire_sum_async__method__SumWith(
+    int port_,
+    ffi.Pointer<wire_SumWith> that,
+    int y,
+    int z,
+  ) {
+    return _wire_sum_async__method__SumWith(
+      port_,
+      that,
+      y,
+      z,
+    );
+  }
+
+  late final _wire_sum_async__method__SumWithPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<wire_SumWith>, ffi.Uint32, ffi.Uint32)>>(
+          'wire_sum_async__method__SumWith');
+  late final _wire_sum_async__method__SumWith =
+      _wire_sum_async__method__SumWithPtr.asFunction<void Function(int, ffi.Pointer<wire_SumWith>, int, int)>();
+
+  void wire_sum_async_fallible__method__SumWith(
+    int port_,
+    ffi.Pointer<wire_SumWith> that,
+    ffi.Pointer<wire_uint_8_list> mode,
+  ) {
+    return _wire_sum_async_fallible__method__SumWith(
+      port_,
+      that,
+      mode,
+    );
+  }
+
+  late final _wire_sum_async_fallible__method__SumWithPtr = _lookup<
+          ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<wire_SumWith>, ffi.Pointer<wire_uint_8_list>)>>(
+      'wire_sum_async_fallible__method__SumWith');
+  late final _wire_sum_async_fallible__method__SumWith = _wire_sum_async_fallible__method__SumWithPtr
+      .asFunction<void Function(int, ffi.Pointer<wire_SumWith>, ffi.Pointer<wire_uint_8_list>)>();
 
   wire_BoxDartDebug new_BoxDartDebug() {
     return _new_BoxDartDebug();

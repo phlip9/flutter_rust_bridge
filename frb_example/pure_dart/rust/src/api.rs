@@ -1320,3 +1320,43 @@ pub fn handle_type_alias_model(input: Id) -> TestModel {
         alias_struct: StructAlias { content: true },
     }
 }
+
+pub async fn handle_async_fn(a: i32, b: i32) -> i32 {
+    // ensure basic async yielding works
+    crate::data::yield_now().await;
+
+    a + b
+}
+
+pub async fn handle_async_fn_fallible(mode: String) -> Result<Vec<u8>> {
+    // ensure basic async yielding works
+    crate::data::yield_now().await;
+
+    match mode.as_str() {
+        "NORMAL" => Ok(vec![42u8; 100]),
+        "RESULT_ERR" => Err(anyhow!("deliberate error in handle_async_fn_fallible")),
+        "PANIC" => panic!("deliberate panic in handle_async_fn_fallible"),
+        _ => panic!("unknown mode"),
+    }
+}
+
+impl SumWith {
+    pub async fn sum_async(&self, y: u32, z: u32) -> u32 {
+        // ensure basic async yielding works
+        crate::data::yield_now().await;
+
+        self.x + y + z
+    }
+
+    pub async fn sum_async_fallible(&self, mode: String) -> Result<u32> {
+        // ensure basic async yielding works
+        crate::data::yield_now().await;
+
+        match mode.as_str() {
+            "NORMAL" => Ok(self.x + 45),
+            "RESULT_ERR" => Err(anyhow!("deliberate error in SumWith::sum_async_fallible")),
+            "PANIC" => panic!("deliberate panic in SumWith::sum_async_fallible"),
+            _ => panic!("unknown mode"),
+        }
+    }
+}

@@ -1125,6 +1125,10 @@ class FlutterRustBridgeExampleSingleBlockTestWasmModule implements WasmModule {
 
   external dynamic /* void */ wire_handle_type_alias_model(NativePortType port_, Object input);
 
+  external dynamic /* void */ wire_handle_async_fn(NativePortType port_, int a, int b);
+
+  external dynamic /* void */ wire_handle_async_fn_fallible(NativePortType port_, String mode);
+
   external dynamic /* void */ wire_sum__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z);
 
   external dynamic /* void */ wire_new__static_method__ConcatenateWith(NativePortType port_, String a);
@@ -1146,6 +1150,11 @@ class FlutterRustBridgeExampleSingleBlockTestWasmModule implements WasmModule {
 
   external dynamic /* void */ wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith(
       NativePortType port_);
+
+  external dynamic /* void */ wire_sum_async__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z);
+
+  external dynamic /* void */ wire_sum_async_fallible__method__SumWith(
+      NativePortType port_, List<dynamic> that, String mode);
 
   external dynamic /*  */ drop_opaque_BoxDartDebug(ptr);
 
@@ -1501,6 +1510,11 @@ class FlutterRustBridgeExampleSingleBlockTestWire
   void wire_handle_type_alias_model(NativePortType port_, Object input) =>
       wasmModule.wire_handle_type_alias_model(port_, input);
 
+  void wire_handle_async_fn(NativePortType port_, int a, int b) => wasmModule.wire_handle_async_fn(port_, a, b);
+
+  void wire_handle_async_fn_fallible(NativePortType port_, String mode) =>
+      wasmModule.wire_handle_async_fn_fallible(port_, mode);
+
   void wire_sum__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z) =>
       wasmModule.wire_sum__method__SumWith(port_, that, y, z);
 
@@ -1525,6 +1539,12 @@ class FlutterRustBridgeExampleSingleBlockTestWire
 
   void wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith(NativePortType port_) =>
       wasmModule.wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith(port_);
+
+  void wire_sum_async__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z) =>
+      wasmModule.wire_sum_async__method__SumWith(port_, that, y, z);
+
+  void wire_sum_async_fallible__method__SumWith(NativePortType port_, List<dynamic> that, String mode) =>
+      wasmModule.wire_sum_async_fallible__method__SumWith(port_, that, mode);
 
   dynamic /*  */ drop_opaque_BoxDartDebug(ptr) => wasmModule.drop_opaque_BoxDartDebug(ptr);
 

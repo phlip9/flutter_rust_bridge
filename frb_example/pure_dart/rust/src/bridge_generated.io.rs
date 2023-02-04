@@ -700,6 +700,16 @@ pub extern "C" fn wire_handle_type_alias_model(port_: i64, input: u64) {
 }
 
 #[no_mangle]
+pub extern "C" fn wire_handle_async_fn(port_: i64, a: i32, b: i32) {
+    wire_handle_async_fn_impl(port_, a, b)
+}
+
+#[no_mangle]
+pub extern "C" fn wire_handle_async_fn_fallible(port_: i64, mode: *mut wire_uint_8_list) {
+    wire_handle_async_fn_fallible_impl(port_, mode)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_sum__method__SumWith(port_: i64, that: *mut wire_SumWith, y: u32, z: u32) {
     wire_sum__method__SumWith_impl(port_, that, y, z)
 }
@@ -759,6 +769,25 @@ pub extern "C" fn wire_handle_some_static_stream_sink_single_arg__static_method_
     port_: i64,
 ) {
     wire_handle_some_static_stream_sink_single_arg__static_method__ConcatenateWith_impl(port_)
+}
+
+#[no_mangle]
+pub extern "C" fn wire_sum_async__method__SumWith(
+    port_: i64,
+    that: *mut wire_SumWith,
+    y: u32,
+    z: u32,
+) {
+    wire_sum_async__method__SumWith_impl(port_, that, y, z)
+}
+
+#[no_mangle]
+pub extern "C" fn wire_sum_async_fallible__method__SumWith(
+    port_: i64,
+    that: *mut wire_SumWith,
+    mode: *mut wire_uint_8_list,
+) {
+    wire_sum_async_fallible__method__SumWith_impl(port_, that, mode)
 }
 
 // Section: allocate functions

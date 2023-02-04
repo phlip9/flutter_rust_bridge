@@ -1,6 +1,7 @@
 //! Wrappers and executors for Rust functions.
 
 use std::any::Any;
+use std::future::Future;
 use std::panic;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
@@ -48,6 +49,12 @@ pub trait Handler {
     where
         PrepareFn: FnOnce() -> TaskFn + UnwindSafe,
         TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
+        TaskRet: IntoDart;
+
+    fn wrap_async<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
+    where
+        PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
+        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
 
     /// Same as [`wrap`][Handler::wrap], but the Rust function must return a [SyncReturn] and
@@ -118,6 +125,21 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         });
     }
 
+    fn wrap_async<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
+    where
+        PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
+        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+        TaskRet: IntoDart,
+    {
+        // NOTE This extra [catch_unwind] **SHOULD** be put outside **ALL** code!
+        // For reason, see comments in [wrap]
+        let _ = panic::catch_unwind(move || {
+            let wrap_info2 = wrap_info.clone();
+            let task = prepare();
+            self.executor.execute_async(wrap_info2, task);
+        });
+    }
+
     fn wrap_sync<SyncTaskFn, TaskRet>(
         &self,
         wrap_info: WrapInfo,
@@ -155,6 +177,12 @@ pub trait Executor: RefUnwindSafe {
     fn execute<TaskFn, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFn)
     where
         TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
+        TaskRet: IntoDart;
+
+    /// TODO
+    fn execute_async<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    where
+        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
 
     /// Executes a Rust function that returns a [SyncReturn].
@@ -224,6 +252,41 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
 
             if let Err(error) = thread_result {
                 eh.handle_error(port.expect("(worker) eh"), Error::Panic(error));
+            }
+        });
+    }
+
+    fn execute_async<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    where
+        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+        TaskRet: IntoDart,
+    {
+        let eh = self.error_handler;
+        let WrapInfo { port, mode, .. } = wrap_info;
+
+        let port = port.expect("execute_async should always be given a MessagePort");
+
+        spawn!(|port: Option<MessagePort>| {
+            let thread_result = panic::catch_unwind(move || {
+                let rust2dart = Rust2Dart::new(port);
+                let result = futures_executor::block_on(task);
+                match result {
+                    Ok(output) => match mode {
+                        FfiCallMode::Normal => {
+                            rust2dart.success(output);
+                        }
+                        FfiCallMode::Stream => (),
+                        FfiCallMode::Sync => panic!(
+                            "FfiCallMode::Sync should not call execute_async, \
+                             please call execute_sync instead"
+                        ),
+                    },
+                    Err(err) => eh.handle_error(port, Error::ResultError(err)),
+                }
+            });
+
+            if let Err(err) = thread_result {
+                eh.handle_error(port, Error::Panic(err));
             }
         });
     }

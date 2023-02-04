@@ -188,6 +188,7 @@ impl<'a> Parser<'a> {
         let mut output = None;
         let mut mode: Option<IrFuncMode> = None;
         let mut fallible = true;
+        let is_async = func.sig.asyncness.is_some();
 
         for (i, sig_input) in sig.inputs.iter().enumerate() {
             if let FnArg::Typed(ref pat_type) = sig_input {
@@ -257,6 +258,7 @@ impl<'a> Parser<'a> {
 
         IrFunc {
             name: func_name,
+            is_async,
             inputs,
             output: output.expect("unsupported output"),
             fallible,
@@ -356,7 +358,7 @@ fn item_method_to_function(item_impl: &ItemImpl, item_method: &ImplItemMethod) -
             vis: item_method.vis.clone(),
             sig: Signature {
                 constness: None,
-                asyncness: None,
+                asyncness: item_method.sig.asyncness,
                 unsafety: None,
                 abi: None,
                 fn_token: item_method.sig.fn_token,
