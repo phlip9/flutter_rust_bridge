@@ -1203,6 +1203,7 @@ void main(List<String> args) async {
         }
       }
     });
+
     test('dart call SumWith::sum_async', () async {
       final SumWith sumWith = SumWith(bridge: api, x: 3);
       expect(await sumWith.sumAsync(y: 123, z: 42), 168);
@@ -1219,6 +1220,12 @@ void main(List<String> args) async {
           print('dart catch e: $e');
         }
       }
+    });
+
+    test('dart call handle_async_fn_stream', () async {
+      final stream = api.handleAsyncFnStream(arg: "wow");
+
+      expect(await stream.toList(), ["very cool wow", "very nice wow"]);
     });
   });
 }

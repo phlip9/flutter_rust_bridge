@@ -689,6 +689,11 @@ pub fn wire_handle_async_fn_fallible(port_: MessagePort, mode: String) {
 }
 
 #[wasm_bindgen]
+pub fn wire_handle_async_fn_stream(port_: MessagePort, arg: String) {
+    wire_handle_async_fn_stream_impl(port_, arg)
+}
+
+#[wasm_bindgen]
 pub fn wire_sum__method__SumWith(port_: MessagePort, that: JsValue, y: u32, z: u32) {
     wire_sum__method__SumWith_impl(port_, that, y, z)
 }

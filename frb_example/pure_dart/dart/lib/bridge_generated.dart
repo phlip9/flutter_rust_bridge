@@ -2154,6 +2154,22 @@ class FlutterRustBridgeExampleSingleBlockTestImpl implements FlutterRustBridgeEx
         argNames: ["mode"],
       );
 
+  Stream<String> handleAsyncFnStream({required String arg, dynamic hint}) {
+    var arg0 = _platform.api2wire_String(arg);
+    return _platform.executeStream(FlutterRustBridgeTask(
+      callFfi: (port_) => _platform.inner.wire_handle_async_fn_stream(port_, arg0),
+      parseSuccessData: _wire2api_String,
+      constMeta: kHandleAsyncFnStreamConstMeta,
+      argValues: [arg],
+      hint: hint,
+    ));
+  }
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnStreamConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "handle_async_fn_stream",
+        argNames: ["arg"],
+      );
+
   Future<int> sumMethodSumWith({required SumWith that, required int y, required int z, dynamic hint}) {
     var arg0 = _platform.api2wire_box_autoadd_sum_with(that);
     var arg1 = api2wire_u32(y);

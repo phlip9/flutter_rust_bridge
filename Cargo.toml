@@ -1,4 +1,6 @@
 [workspace]
+resolver = "2"
+
 members = [
   "frb_codegen",
   "frb_rust",

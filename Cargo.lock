@@ -844,6 +844,7 @@ dependencies = [
  "lazy_static",
  "log",
  "static_init",
+ "tokio",
  "uuid",
 ]
 

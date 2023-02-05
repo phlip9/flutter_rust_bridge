@@ -710,6 +710,11 @@ pub extern "C" fn wire_handle_async_fn_fallible(port_: i64, mode: *mut wire_uint
 }
 
 #[no_mangle]
+pub extern "C" fn wire_handle_async_fn_stream(port_: i64, arg: *mut wire_uint_8_list) {
+    wire_handle_async_fn_stream_impl(port_, arg)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_sum__method__SumWith(port_: i64, that: *mut wire_SumWith, y: u32, z: u32) {
     wire_sum__method__SumWith_impl(port_, that, y, z)
 }

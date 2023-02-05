@@ -355,24 +355,28 @@ impl<'a> Generator<'a> {
             (false, true) => format!("async move {{ Ok({code_call_inner_func}.await) }}"), // (false, true) => format!("support::async_infallible({})", code_call_inner_func),
         };
 
-        let (handler_func_name, return_type, closure_body) = match (&func.mode, func.is_async) {
-            (IrFuncMode::Normal | IrFuncMode::Stream { .. }, false) => (
-                "wrap",
-                None,
-                format!("{code_wire2api}\nmove |task_callback| {closure_body}\n"),
-            ),
-            (IrFuncMode::Normal | IrFuncMode::Stream { .. }, true) => (
-                "wrap_future",
-                None,
-                format!("{code_wire2api}\n{closure_body}\n"),
-            ),
-            (IrFuncMode::Sync, false) => (
-                "wrap_sync",
-                Some("support::WireSyncReturn"),
-                format!("{code_wire2api}\n{closure_body}\n"),
-            ),
-            (IrFuncMode::Sync, true) => {
-                panic!("`async fn` is not yet supported with `SyncReturn<_>`")
+        let (handler_func_name, return_type, closure_body) = match &func.mode {
+            IrFuncMode::Normal | IrFuncMode::Stream { .. } => {
+                let handler_func_name = if !func.is_async {
+                    "wrap"
+                } else {
+                    "wrap_future"
+                };
+                (
+                    handler_func_name,
+                    None,
+                    format!("{code_wire2api}\nmove |task_callback| {closure_body}\n"),
+                )
+            }
+            IrFuncMode::Sync => {
+                if func.is_async {
+                    panic!("`async fn` is not yet supported with `SyncReturn<_>`");
+                }
+                (
+                    "wrap_sync",
+                    Some("support::WireSyncReturn"),
+                    format!("{code_wire2api}\n{closure_body}\n"),
+                )
             }
         };
 

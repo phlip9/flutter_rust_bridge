@@ -3183,6 +3183,22 @@ class FlutterRustBridgeExampleSingleBlockTestWire implements FlutterRustBridgeWi
   late final _wire_handle_async_fn_fallible =
       _wire_handle_async_fn_falliblePtr.asFunction<void Function(int, ffi.Pointer<wire_uint_8_list>)>();
 
+  void wire_handle_async_fn_stream(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> arg,
+  ) {
+    return _wire_handle_async_fn_stream(
+      port_,
+      arg,
+    );
+  }
+
+  late final _wire_handle_async_fn_streamPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<wire_uint_8_list>)>>(
+          'wire_handle_async_fn_stream');
+  late final _wire_handle_async_fn_stream =
+      _wire_handle_async_fn_streamPtr.asFunction<void Function(int, ffi.Pointer<wire_uint_8_list>)>();
+
   void wire_sum__method__SumWith(
     int port_,
     ffi.Pointer<wire_SumWith> that,

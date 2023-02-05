@@ -1129,6 +1129,8 @@ class FlutterRustBridgeExampleSingleBlockTestWasmModule implements WasmModule {
 
   external dynamic /* void */ wire_handle_async_fn_fallible(NativePortType port_, String mode);
 
+  external dynamic /* void */ wire_handle_async_fn_stream(NativePortType port_, String arg);
+
   external dynamic /* void */ wire_sum__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z);
 
   external dynamic /* void */ wire_new__static_method__ConcatenateWith(NativePortType port_, String a);
@@ -1514,6 +1516,9 @@ class FlutterRustBridgeExampleSingleBlockTestWire
 
   void wire_handle_async_fn_fallible(NativePortType port_, String mode) =>
       wasmModule.wire_handle_async_fn_fallible(port_, mode);
+
+  void wire_handle_async_fn_stream(NativePortType port_, String arg) =>
+      wasmModule.wire_handle_async_fn_stream(port_, arg);
 
   void wire_sum__method__SumWith(NativePortType port_, List<dynamic> that, int y, int z) =>
       wasmModule.wire_sum__method__SumWith(port_, that, y, z);

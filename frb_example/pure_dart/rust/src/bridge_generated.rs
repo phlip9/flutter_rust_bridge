@@ -1904,7 +1904,7 @@ fn wire_handle_async_fn_impl(
         move || {
             let api_a = a.wire2api();
             let api_b = b.wire2api();
-            async move { Ok(handle_async_fn(api_a, api_b).await) }
+            move |task_callback| async move { Ok(handle_async_fn(api_a, api_b).await) }
         },
     )
 }
@@ -1920,7 +1920,22 @@ fn wire_handle_async_fn_fallible_impl(
         },
         move || {
             let api_mode = mode.wire2api();
-            async move { handle_async_fn_fallible(api_mode).await }
+            move |task_callback| async move { handle_async_fn_fallible(api_mode).await }
+        },
+    )
+}
+fn wire_handle_async_fn_stream_impl(port_: MessagePort, arg: impl Wire2Api<String> + UnwindSafe) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
+        WrapInfo {
+            debug_name: "handle_async_fn_stream",
+            port: Some(port_),
+            mode: FfiCallMode::Stream,
+        },
+        move || {
+            let api_arg = arg.wire2api();
+            move |task_callback| async move {
+                Ok(handle_async_fn_stream(task_callback.stream_sink(), api_arg).await)
+            }
         },
     )
 }
@@ -2092,37 +2107,18 @@ fn wire_sum_async__method__SumWith_impl(
     y: impl Wire2Api<u32> + UnwindSafe,
     z: impl Wire2Api<u32> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
-        WrapInfo {
-            debug_name: "sum_async__method__SumWith",
-            port: Some(port_),
-            mode: FfiCallMode::Normal,
-        },
-        move || {
-            let api_that = that.wire2api();
-            let api_y = y.wire2api();
-            let api_z = z.wire2api();
-            async move { Ok(SumWith::sum_async(&api_that, api_y, api_z).await) }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(WrapInfo{ debug_name: "sum_async__method__SumWith", port: Some(port_), mode: FfiCallMode::Normal }, move || { let api_that = that.wire2api();let api_y = y.wire2api();let api_z = z.wire2api();
+move |task_callback| async move { Ok(SumWith::sum_async(&api_that, api_y, api_z).await) }
+ })
 }
 fn wire_sum_async_fallible__method__SumWith_impl(
     port_: MessagePort,
     that: impl Wire2Api<SumWith> + UnwindSafe,
     mode: impl Wire2Api<String> + UnwindSafe,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(
-        WrapInfo {
-            debug_name: "sum_async_fallible__method__SumWith",
-            port: Some(port_),
-            mode: FfiCallMode::Normal,
-        },
-        move || {
-            let api_that = that.wire2api();
-            let api_mode = mode.wire2api();
-            async move { SumWith::sum_async_fallible(&api_that, api_mode).await }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_future(WrapInfo{ debug_name: "sum_async_fallible__method__SumWith", port: Some(port_), mode: FfiCallMode::Normal }, move || { let api_that = that.wire2api();let api_mode = mode.wire2api();
+move |task_callback| async move { SumWith::sum_async_fallible(&api_that, api_mode).await }
+ })
 }
 // Section: wrapper structs
 

@@ -1323,14 +1323,16 @@ pub fn handle_type_alias_model(input: Id) -> TestModel {
 
 pub async fn handle_async_fn(a: i32, b: i32) -> i32 {
     // ensure basic async yielding works
-    crate::data::yield_now().await;
+    tokio::task::yield_now().await;
+    // tokio::time::sleep(Duration::from_millis(1)).await;
 
     a + b
 }
 
 pub async fn handle_async_fn_fallible(mode: String) -> Result<Vec<u8>> {
     // ensure basic async yielding works
-    crate::data::yield_now().await;
+    tokio::task::yield_now().await;
+    // tokio::time::sleep(Duration::from_millis(1)).await;
 
     match mode.as_str() {
         "NORMAL" => Ok(vec![42u8; 100]),
@@ -1343,14 +1345,16 @@ pub async fn handle_async_fn_fallible(mode: String) -> Result<Vec<u8>> {
 impl SumWith {
     pub async fn sum_async(&self, y: u32, z: u32) -> u32 {
         // ensure basic async yielding works
-        crate::data::yield_now().await;
+        tokio::task::yield_now().await;
+        // tokio::time::sleep(Duration::from_millis(1)).await;
 
         self.x + y + z
     }
 
     pub async fn sum_async_fallible(&self, mode: String) -> Result<u32> {
         // ensure basic async yielding works
-        crate::data::yield_now().await;
+        tokio::task::yield_now().await;
+        // tokio::time::sleep(Duration::from_millis(1)).await;
 
         match mode.as_str() {
             "NORMAL" => Ok(self.x + 45),
@@ -1359,4 +1363,18 @@ impl SumWith {
             _ => panic!("unknown mode"),
         }
     }
+}
+
+pub async fn handle_async_fn_stream(sink: StreamSink<String>, arg: String) {
+    tokio::task::yield_now().await;
+    // tokio::time::sleep(Duration::from_millis(1)).await;
+    sink.add(format!("very cool {arg}"));
+
+    tokio::task::yield_now().await;
+    // tokio::time::sleep(Duration::from_millis(1)).await;
+    sink.add(format!("very nice {arg}"));
+
+    tokio::task::yield_now().await;
+    // tokio::time::sleep(Duration::from_millis(1)).await;
+    sink.close();
 }

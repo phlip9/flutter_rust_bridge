@@ -572,6 +572,10 @@ abstract class FlutterRustBridgeExampleSingleBlockTest {
 
   FlutterRustBridgeTaskConstMeta get kHandleAsyncFnFallibleConstMeta;
 
+  Stream<String> handleAsyncFnStream({required String arg, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kHandleAsyncFnStreamConstMeta;
+
   Future<int> sumMethodSumWith({required SumWith that, required int y, required int z, dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kSumMethodSumWithConstMeta;

@@ -51,10 +51,15 @@ pub trait Handler {
         TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
 
-    fn wrap_future<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
-    where
-        PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
-        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+    // TODO
+    fn wrap_future<PrepareFn, TaskFn, TaskFut, TaskRet>(
+        &self,
+        wrap_info: WrapInfo,
+        prepare: PrepareFn,
+    ) where
+        PrepareFn: FnOnce() -> TaskFn + UnwindSafe,
+        TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
+        TaskFut: Future<Output = Result<TaskRet>>,
         TaskRet: IntoDart;
 
     /// Same as [`wrap`][Handler::wrap], but the Rust function must return a [SyncReturn] and
@@ -116,7 +121,9 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         let _ = panic::catch_unwind(move || {
             let port = wrap_info
                 .port
-                .expect("wrap must always be given a MessagePort");
+                .as_ref()
+                .expect("wrap must always be given a MessagePort")
+                .clone();
             if let Err(error) = panic::catch_unwind(move || {
                 let task = prepare();
                 self.executor.execute(wrap_info, task);
@@ -126,10 +133,14 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         });
     }
 
-    fn wrap_future<PrepareFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, prepare: PrepareFn)
-    where
-        PrepareFn: FnOnce() -> TaskFut + UnwindSafe,
-        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+    fn wrap_future<PrepareFn, TaskFn, TaskFut, TaskRet>(
+        &self,
+        wrap_info: WrapInfo,
+        prepare: PrepareFn,
+    ) where
+        PrepareFn: FnOnce() -> TaskFn + UnwindSafe,
+        TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
+        TaskFut: Future<Output = Result<TaskRet>>,
         TaskRet: IntoDart,
     {
         // NOTE This extra [catch_unwind] **SHOULD** be put outside **ALL** code!
@@ -137,10 +148,12 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
         let _ = panic::catch_unwind(move || {
             let port = wrap_info
                 .port
-                .expect("wrap_async must always be given a MessagePort");
+                .as_ref()
+                .expect("wrap must always be given a MessagePort")
+                .clone();
             if let Err(error) = panic::catch_unwind(move || {
-                let task = prepare();
-                self.executor.execute_future(wrap_info, task);
+                let task_fn = prepare();
+                self.executor.execute_future(wrap_info, task_fn);
             }) {
                 self.error_handler.handle_error(port, Error::Panic(error));
             }
@@ -181,15 +194,16 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
 pub trait Executor: RefUnwindSafe {
     /// Executes a Rust function and transforms its return value into a Dart-compatible
     /// value, i.e. types that implement [`IntoDart`].
-    fn execute<TaskFn, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFn)
+    fn execute<Task, TaskRet>(&self, wrap_info: WrapInfo, task: Task)
     where
-        TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
+        Task: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart;
 
     /// TODO
-    fn execute_future<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    fn execute_future<TaskFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task_fn: TaskFn)
     where
-        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+        TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
+        TaskFut: Future<Output = Result<TaskRet>>,
         TaskRet: IntoDart;
 
     /// Executes a Rust function that returns a [SyncReturn].
@@ -252,34 +266,34 @@ fn report_task_result<EH>(
 }
 
 impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
-    fn execute<TaskFn, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFn)
+    fn execute<Task, TaskRet>(&self, wrap_info: WrapInfo, task: Task)
     where
-        TaskFn: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
+        Task: FnOnce(TaskCallback) -> Result<TaskRet> + Send + UnwindSafe + 'static,
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
         let WrapInfo { port, mode, .. } = wrap_info;
         let port = port.expect("execute must always be given a MessagePort");
 
-        let task_callback = TaskCallback::new(Rust2Dart::new(port));
-
         spawn!(|port: MessagePort| {
             let port_clone = port.clone();
 
             let task_panic = panic::catch_unwind(move || {
+                let task_callback = TaskCallback::new(Rust2Dart::new(port.clone()));
                 let task_result = task(task_callback).map(IntoDart::into_dart);
-                report_task_result(eh, port_clone, mode, task_result);
+                report_task_result(eh, port, mode, task_result);
             });
 
             if let Err(err) = task_panic {
-                eh.handle_error(port, Error::Panic(err));
+                eh.handle_error(port_clone, Error::Panic(err));
             }
         });
     }
 
-    fn execute_future<TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task: TaskFut)
+    fn execute_future<TaskFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task_fn: TaskFn)
     where
-        TaskFut: Future<Output = Result<TaskRet>> + Send + UnwindSafe + 'static,
+        TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
+        TaskFut: Future<Output = Result<TaskRet>>,
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
@@ -290,13 +304,15 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
             let port_clone = port.clone();
 
             let task_panic = panic::catch_unwind(move || {
+                let task_callback = TaskCallback::new(Rust2Dart::new(port.clone()));
+                let task = task_fn(task_callback);
                 let task_result =
                     RUNTIME.with(move |rt| rt.block_on(task).map(IntoDart::into_dart));
-                report_task_result(eh, port_clone, mode, task_result);
+                report_task_result(eh, port, mode, task_result);
             });
 
             if let Err(err) = task_panic {
-                eh.handle_error(port, Error::Panic(err));
+                eh.handle_error(port_clone, Error::Panic(err));
             }
         });
     }
@@ -310,8 +326,6 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         SyncTaskFn: FnOnce() -> Result<SyncReturn<TaskRet>> + UnwindSafe,
         TaskRet: IntoDart,
     {
-        // RUNTIME.with(move |rt| rt.block_on(async move { sync_task() }))
-
         sync_task()
     }
 }
