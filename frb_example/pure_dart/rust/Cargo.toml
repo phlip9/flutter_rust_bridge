@@ -24,7 +24,7 @@ flutter_rust_bridge = { workspace = true, features = ["chrono", "uuid"] }
 uuid = { workspace = true }
 log = "0.4"
 # tokio = { version = "1", features = ["rt", "time"] }
-tokio = { version = "1", features = ["rt"] }
+# tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 console_log = { version = "0.2", features = ["color"] }

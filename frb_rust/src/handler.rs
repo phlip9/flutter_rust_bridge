@@ -59,7 +59,7 @@ pub trait Handler {
     ) where
         PrepareFn: FnOnce() -> TaskFn + UnwindSafe,
         TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
-        TaskFut: Future<Output = Result<TaskRet>>,
+        TaskFut: Future<Output = Result<TaskRet>> + 'static,
         TaskRet: IntoDart;
 
     /// Same as [`wrap`][Handler::wrap], but the Rust function must return a [SyncReturn] and
@@ -140,7 +140,7 @@ impl<E: Executor, EH: ErrorHandler> Handler for SimpleHandler<E, EH> {
     ) where
         PrepareFn: FnOnce() -> TaskFn + UnwindSafe,
         TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
-        TaskFut: Future<Output = Result<TaskRet>>,
+        TaskFut: Future<Output = Result<TaskRet>> + 'static,
         TaskRet: IntoDart,
     {
         // NOTE This extra [catch_unwind] **SHOULD** be put outside **ALL** code!
@@ -203,7 +203,7 @@ pub trait Executor: RefUnwindSafe {
     fn execute_future<TaskFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task_fn: TaskFn)
     where
         TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
-        TaskFut: Future<Output = Result<TaskRet>>,
+        TaskFut: Future<Output = Result<TaskRet>> + 'static,
         TaskRet: IntoDart;
 
     /// Executes a Rust function that returns a [SyncReturn].
@@ -231,6 +231,7 @@ impl<EH: ErrorHandler> ThreadPoolExecutor<EH> {
     }
 }
 
+#[cfg(not(wasm))]
 thread_local! {
     static RUNTIME: tokio::runtime::Runtime =
         tokio::runtime::Builder::new_current_thread()
@@ -275,6 +276,8 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
         let WrapInfo { port, mode, .. } = wrap_info;
         let port = port.expect("execute must always be given a MessagePort");
 
+        // on wasm, MessagePort is !Send and needs to be
+        // ["transferred"](crate::macros::transfer) to the worker thread.
         spawn!(|port: MessagePort| {
             let port_clone = port.clone();
 
@@ -293,22 +296,69 @@ impl<EH: ErrorHandler> Executor for ThreadPoolExecutor<EH> {
     fn execute_future<TaskFn, TaskFut, TaskRet>(&self, wrap_info: WrapInfo, task_fn: TaskFn)
     where
         TaskFn: FnOnce(TaskCallback) -> TaskFut + Send + UnwindSafe + 'static,
-        TaskFut: Future<Output = Result<TaskRet>>,
+        TaskFut: Future<Output = Result<TaskRet>> + 'static,
         TaskRet: IntoDart,
     {
         let eh = self.error_handler;
         let WrapInfo { port, mode, .. } = wrap_info;
         let port = port.expect("execute_future must always be given a MessagePort");
 
+        // on wasm, MessagePort is !Send and needs to be
+        // ["transferred"](crate::macros::transfer) to the worker thread.
         spawn!(|port: MessagePort| {
             let port_clone = port.clone();
 
             let task_panic = panic::catch_unwind(move || {
                 let task_callback = TaskCallback::new(Rust2Dart::new(port.clone()));
                 let task = task_fn(task_callback);
-                let task_result =
-                    RUNTIME.with(move |rt| rt.block_on(task).map(IntoDart::into_dart));
-                report_task_result(eh, port, mode, task_result);
+
+                #[cfg(not(wasm))]
+                {
+                    // get the handle to the current worker thread's async
+                    // runtime and then run the future on it.
+                    let task_result =
+                        RUNTIME.with(move |rt| rt.block_on(task).map(IntoDart::into_dart));
+                    report_task_result(eh, port, mode, task_result);
+                }
+
+                #[cfg(wasm)]
+                {
+                    let task = async move {
+                        let task_result = task.await.map(IntoDart::into_dart);
+                        report_task_result(eh, port, mode, task_result);
+                    };
+
+                    // TODO: it seems that catch unwind is ineffective on wasm
+                    //       when wrapping a spawned future?
+                    //
+                    // From: <https://docs.rs/wasm-bindgen-futures/latest/wasm_bindgen_futures/fn.future_to_promise.html#panics>
+                    //
+                    // > Note that in wasm panics are currently translated to
+                    // > aborts, but “abort” in this case means that a
+                    // > JavaScript exception is thrown. The wasm module is
+                    // > still usable (likely erroneously) after Rust panics.
+                    // >
+                    // > If the future provided panics then the returned Promise
+                    // > will not resolve. Instead it will be a leaked promise.
+                    // > This is an unfortunate limitation of wasm currently
+                    // > that’s hoped to be fixed one day!
+                    //
+                    // Ineffective code:
+                    //
+                    // ```
+                    // use futures_util::future::FutureExt;
+                    //
+                    // let task = task
+                    //     .catch_unwind()
+                    //     .map(move |task_panic| {
+                    //         if let Err(err) = task_panic {
+                    //             eh.handle_error(port, Error::Panic(err));
+                    //         }
+                    //     });
+                    // ```
+
+                    wasm_bindgen_futures::spawn_local(task);
+                }
             });
 
             if let Err(err) = task_panic {

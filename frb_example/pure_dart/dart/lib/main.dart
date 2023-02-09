@@ -1194,7 +1194,11 @@ void main(List<String> args) async {
       expect(await api.handleAsyncFnFallible(mode: 'NORMAL'),
           List.filled(100, 42));
 
-      for (final mode in ['RESULT_ERR', 'PANIC']) {
+      // panics in JS tasks don't appear to be catch-able?
+      // see comment in: [`ThreadPoolExecutor::execute_future`]
+      final modes = ['RESULT_ERR', if (!isWeb) 'PANIC'];
+
+      for (final mode in modes) {
         try {
           await api.handleAsyncFnFallible(mode: mode);
           fail("exception not thrown");
@@ -1212,7 +1216,11 @@ void main(List<String> args) async {
       final SumWith sumWith = SumWith(bridge: api, x: 3);
       expect(await sumWith.sumAsyncFallible(mode: 'NORMAL'), 48);
 
-      for (final mode in ['RESULT_ERR', 'PANIC']) {
+      // panics in JS tasks don't appear to be catch-able?
+      // see comment in: [`ThreadPoolExecutor::execute_future`]
+      final modes = ['RESULT_ERR', if (!isWeb) 'PANIC'];
+
+      for (final mode in modes) {
         try {
           await sumWith.sumAsyncFallible(mode: mode);
           fail("exception not thrown");

@@ -18,7 +18,6 @@ parking_lot = "0.12.1"
 flutter_rust_bridge_macros = { workspace = true }
 uuid = { workspace = true, optional = true }
 log = "0.4"
-tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 allo-isolate = { workspace = true }
@@ -26,11 +25,14 @@ libc = "0.2"
 parking_lot = { version = "0.12.1" }
 threadpool = { version = "1.8.1" }
 dart-sys = { version = "3.1.12", features = ["dart_api_dl"] }
+tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 console_error_panic_hook = { version = "0.1.7", optional = true }
-wasm-bindgen = { version = "0.2.81" }
+futures-util = { version = "0.3.26", default-features = false, features = ["std"] }
 js-sys = { version = "0.3.60" }
+wasm-bindgen = { version = "0.2.81" }
+wasm-bindgen-futures = "0.4.34"
 web-sys = { version = "0.3.58", features = [
   "DedicatedWorkerGlobalScope",
   "MessageEvent",
