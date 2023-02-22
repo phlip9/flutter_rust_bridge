@@ -403,6 +403,14 @@ fn fallback_c_output_path() -> Result<String> {
 }
 
 fn fallback_rust_output_path(rust_input_path: &str) -> Result<String> {
+    if let Ok(out_dir) = env::var("OUT_DIR") {
+        return Ok(Path::new(&out_dir)
+            .join("bridge_generated.rs")
+            .to_str()
+            .ok_or_else(|| anyhow!("$OUT_DIR path is not valid UTF-8"))?
+            .to_owned());
+    }
+
     Ok(Path::new(rust_input_path)
         .parent()
         .ok_or_else(|| anyhow!(""))?

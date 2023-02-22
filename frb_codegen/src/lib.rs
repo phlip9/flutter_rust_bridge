@@ -2,46 +2,109 @@
 #![allow(clippy::vec_init_then_push)]
 // #![warn(clippy::wildcard_enum_match_arm)]
 
-use std::ffi::OsStr;
-use std::fs;
-use std::path::Path;
-
-use itertools::Itertools;
-mod logs;
-pub use crate::logs::init_logger;
-use log::info;
-use pathdiff::diff_paths;
-
-use crate::commands::BindgenRustToDartArg;
-use crate::others::*;
-use crate::target::Acc;
-use crate::target::Target;
-use crate::utils::*;
-
-mod config;
-mod tools;
-
-pub use crate::commands::ensure_tools_available;
-pub use crate::config::parse as config_parse;
-pub use crate::config::Opts;
-pub use crate::config::RawOpts;
-pub use crate::utils::get_symbols_if_no_duplicates;
-
 #[macro_use]
 mod commands;
+mod config;
 mod consts;
 mod error;
 mod generator;
 mod ir;
+mod logs;
 mod markers;
 mod method_utils;
 mod others;
 mod parser;
 mod source_graph;
 mod target;
+mod tools;
 mod transformer;
 mod utils;
-use error::*;
+
+use std::ffi::OsStr;
+use std::fs;
+use std::io;
+use std::path::Path;
+
+use anyhow::anyhow;
+use itertools::Itertools;
+use log::{debug, error, info};
+use pathdiff::diff_paths;
+
+use crate::commands::BindgenRustToDartArg;
+use crate::error::*;
+use crate::others::*;
+use crate::target::Acc;
+use crate::target::Target;
+use crate::utils::*;
+
+pub use crate::commands::ensure_tools_available;
+pub use crate::config::parse as config_parse;
+pub use crate::config::Opts;
+pub use crate::config::RawOpts;
+pub use crate::logs::init_logger;
+pub use crate::utils::get_symbols_if_no_duplicates;
+
+fn copy_files(from_dir: &Path, to_dir: &Path) -> io::Result<()> {
+    for dir_entry_res in fs::read_dir(from_dir)? {
+        let dir_entry = dir_entry_res?;
+        let file_path = dir_entry.path();
+        if file_path.is_file() {
+            let file_name = file_path
+                .file_name()
+                .expect("File in subdirectory should have a file name");
+            let dest_file_path = to_dir.join(file_name);
+            fs::copy(file_path, dest_file_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn skip_rebuild_if_recursive_rustc_expand() -> Option<anyhow::Result<()>> {
+    let out_dir = std::env::var("OUT_DIR").ok()?;
+
+    info!("env-detect: running in a cargo build.rs script");
+
+    // OUT_DIR is set, so we're running in a `build.rs` build script.
+
+    println!("cargo:rerun-if-env-changed=FRB_PRE_EXPAND_BUILD_OUT_DIR");
+    let pre_expand_out_dir = std::env::var("FRB_PRE_EXPAND_BUILD_OUT_DIR").ok()?;
+
+    info!("env-detect: running in a recursive cbindgen expand step");
+
+    // FRB_PRE_EXPAND_BUILD_OUT_DIR is set, so we're now in the cbindgen expand
+    // step
+
+    let copy_result =
+        copy_files(Path::new(&pre_expand_out_dir), Path::new(&out_dir)).map_err(|err| {
+            anyhow!(
+                "Failed to copy files from FRB_PRE_EXPAND_BUILD_OUT_DIR \
+             ({pre_expand_out_dir}) to OUT_DIR ({out_dir}): {err}"
+            )
+        });
+
+    Some(copy_result)
+}
+
+pub fn frb_codegen_all(raw_opts: config::RawOpts) -> anyhow::Result<()> {
+    if let Some(result) = skip_rebuild_if_recursive_rustc_expand() {
+        return result;
+    }
+
+    let configs = config_parse(raw_opts);
+    debug!("configs={:?}", configs);
+
+    // generation of rust api for ffi
+    let all_symbols = get_symbols_if_no_duplicates(&configs)?;
+    for config in configs.iter() {
+        if let Err(err) = frb_codegen(config, &all_symbols) {
+            error!("fatal: {err}");
+            return Err(err);
+        }
+    }
+
+    info!("Now go and use it :)");
+    Ok(())
+}
 
 pub fn frb_codegen(config: &config::Opts, all_symbols: &[String]) -> anyhow::Result<()> {
     let dart_root = config.dart_root_or_default();

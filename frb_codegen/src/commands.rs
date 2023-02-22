@@ -219,6 +219,7 @@ fn cbindgen(
         "execute cbindgen rust_crate_dir={} c_output_path={}",
         rust_crate_dir, c_output_path
     );
+
     let config = cbindgen::Config {
         language: cbindgen::Language::C,
         sys_includes: vec![
@@ -238,6 +239,14 @@ fn cbindgen(
             exclude: exclude_symbols,
             ..Default::default()
         },
+        parse: cbindgen::ParseConfig {
+            expand: cbindgen::ParseExpandConfig {
+                crates: vec!["flutter_rust_bridge_example_single_block_test".to_owned()],
+                ..Default::default()
+            },
+            clean: false,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -251,6 +260,11 @@ fn cbindgen(
     // on windows get rid of the UNC path
     if path.starts_with(r"\\?\") {
         path = &path[r"\\?\".len()..];
+    }
+
+    // TODO
+    if let Some(out_dir) = std::env::var_os("OUT_DIR") {
+        std::env::set_var("FRB_PRE_EXPAND_BUILD_OUT_DIR", out_dir);
     }
 
     if cbindgen::generate_with_config(path, config)?.write_to_file(c_output_path) {

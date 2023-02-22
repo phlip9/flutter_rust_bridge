@@ -40,7 +40,7 @@ pub use web::*;
 pub type Channel = allo_isolate::Isolate;
 
 #[cfg(not(wasm))]
-pub mod io;
+mod io;
 
 #[cfg(not(wasm))]
 pub use io::*;
