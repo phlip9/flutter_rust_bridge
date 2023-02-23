@@ -7,6 +7,12 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 use pathdiff::diff_paths;
 
+pub const DUMMY_CARGO_TOML_FOR_BINDGEN: &str = r#"
+[package]
+name = "frb-fake-crate-for-cbindgen"
+version = "0.1.0"
+"#;
+
 // NOTE [DartPostCObjectFnType] was originally [*mut DartCObject] but I changed it to [*mut c_void]
 // because cannot automatically generate things related to [DartCObject]. Anyway this works fine.
 // NOTE please sync [DUMMY_WIRE_CODE_FOR_BINDGEN] and [EXTRA_EXTERN_FUNC_NAMES]

@@ -86,9 +86,9 @@ fn skip_rebuild_if_recursive_rustc_expand() -> Option<anyhow::Result<()>> {
 }
 
 pub fn frb_codegen_all(raw_opts: config::RawOpts) -> anyhow::Result<()> {
-    if let Some(result) = skip_rebuild_if_recursive_rustc_expand() {
-        return result;
-    }
+    // if let Some(result) = skip_rebuild_if_recursive_rustc_expand() {
+    //     return result;
+    // }
 
     let configs = config_parse(raw_opts);
     debug!("configs={:?}", configs);
@@ -147,28 +147,31 @@ pub fn frb_codegen(config: &config::Opts, all_symbols: &[String]) -> anyhow::Res
     let temp_dart_wire_file = tempfile::NamedTempFile::new()?;
     let temp_bindgen_c_output_file = tempfile::Builder::new().suffix(".h").tempfile()?;
     let exclude_symbols = generated_rust.get_exclude_symbols(all_symbols);
-    with_changed_file(
-        &config.rust_output_path,
-        DUMMY_WIRE_CODE_FOR_BINDGEN,
-        || {
-            commands::bindgen_rust_to_dart(
-                BindgenRustToDartArg {
-                    rust_crate_dir: &config.rust_crate_dir,
-                    c_output_path: temp_bindgen_c_output_file
-                        .path()
-                        .as_os_str()
-                        .to_str()
-                        .unwrap(),
-                    dart_output_path: temp_dart_wire_file.path().as_os_str().to_str().unwrap(),
-                    dart_class_name: &config.dart_wire_class_name(),
-                    c_struct_names: ir_file.get_c_struct_names(),
-                    exclude_symbols,
-                    llvm_install_path: &config.llvm_path[..],
-                    llvm_compiler_opts: &config.llvm_compiler_opts,
-                },
-                &dart_root,
-            )
+
+    let temp_rust_crate = tempfile::tempdir()?;
+    let dummy_cargo_toml = temp_rust_crate.path().join("Cargo.toml");
+    fs::write(&dummy_cargo_toml, DUMMY_CARGO_TOML_FOR_BINDGEN)?;
+    fs::create_dir(temp_rust_crate.path().join("src"))?;
+
+    let mut cbindgen_input = generated_rust.code.io.clone();
+    cbindgen_input.push_str(DUMMY_WIRE_CODE_FOR_BINDGEN);
+    let dummy_rust_lib_rs = temp_rust_crate.path().join("src/lib.rs");
+
+    info!("Writing cbindgen input to {}", dummy_rust_lib_rs.display());
+    fs::write(&dummy_rust_lib_rs, &cbindgen_input)?;
+
+    commands::bindgen_rust_to_dart(
+        BindgenRustToDartArg {
+            rust_crate_dir: &temp_rust_crate.path().to_str().unwrap(),
+            c_output_path: temp_bindgen_c_output_file.path().to_str().unwrap(),
+            dart_output_path: temp_dart_wire_file.path().to_str().unwrap(),
+            dart_class_name: &config.dart_wire_class_name(),
+            c_struct_names: ir_file.get_c_struct_names(),
+            exclude_symbols,
+            llvm_install_path: &config.llvm_path[..],
+            llvm_compiler_opts: &config.llvm_compiler_opts,
         },
+        &dart_root,
     )?;
 
     let effective_func_names = [
